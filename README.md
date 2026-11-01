@@ -51,8 +51,8 @@ openssl rand -hex 32        # paste the output into WEBUI_SECRET_KEY
 nano .env
 ```
 
-Fill in `WEBUI_SECRET_KEY`, `WEBUI_URL`, `OPENAI_API_BASE_URLS`, `OPENAI_API_KEYS`
-and `ARK_API_KEY`. `WEBUI_URL` is this machine's Tailscale name with `https://`:
+Fill in `WEBUI_SECRET_KEY`, `WEBUI_URL`, `WEBUI_ADMIN_EMAIL`, `WEBUI_ADMIN_PASSWORD`,
+`OPENAI_API_BASE_URLS`, `OPENAI_API_KEYS` and `ARK_API_KEY`. `WEBUI_URL` is this machine's Tailscale name with `https://`:
 `tailscale dns status` prints it ("Other devices in your tailnet can reach
 this device at …").
 
@@ -97,10 +97,16 @@ To stop serving: `sudo tailscale serve reset`.
 
 ### 5. First login and lock-down
 
-1. The **first account you create becomes the admin**. Create it now.
-2. **Admin Panel › Settings › General**: turn off **Enable New Sign Ups**
-   (or leave it on with the default role "pending", so new accounts need your
-   approval).
+- **With `WEBUI_ADMIN_EMAIL` and `WEBUI_ADMIN_PASSWORD` set** (as on the Pod):
+  Open WebUI created that admin account on the first start and turned off new
+  sign-ups. Log in with it, then delete the `WEBUI_ADMIN_PASSWORD` line from
+  `.env`: it's only read while the database has no users, so keeping the
+  plain-text password on disk has no benefit.
+- **Without them:** the first account you create becomes the admin. Create it,
+  then in **Admin Panel › Settings › General** turn off **Enable New Sign Ups**.
+- **If you moved your chats from the Pod:** your Pod account (email and
+  password) comes with the database, and the admin variables are ignored
+  because a user already exists.
 
 ### 6. Use the Runpod GPU Pod from here
 

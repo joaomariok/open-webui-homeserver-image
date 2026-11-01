@@ -30,6 +30,11 @@ services:
       # Sessions survive container re-creation only with a fixed key.
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?set WEBUI_SECRET_KEY in .env (openssl rand -hex 32)}
       WEBUI_URL: ${WEBUI_URL:-}
+      # Admin account from .env, like on the Pod. Used only while the database
+      # has no users; Open WebUI then also turns off new sign-ups.
+      WEBUI_ADMIN_EMAIL: ${WEBUI_ADMIN_EMAIL:-}
+      WEBUI_ADMIN_PASSWORD: ${WEBUI_ADMIN_PASSWORD:-}
+      WEBUI_ADMIN_NAME: ${WEBUI_ADMIN_NAME:-Admin}
       # Model connections (OpenAI-compatible): Venice, and the Runpod GPU Pod when used.
       OPENAI_API_BASE_URLS: ${OPENAI_API_BASE_URLS:?set OPENAI_API_BASE_URLS in .env}
       OPENAI_API_KEYS: ${OPENAI_API_KEYS:?set OPENAI_API_KEYS in .env}
