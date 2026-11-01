@@ -1,0 +1,8 @@
+# Keep Unix line endings even when checked out on Windows: the server runs
+# these files on Linux, and sh cannot run scripts with CRLF line endings.
+*.sh        text eol=lf
+*.py        text eol=lf
+*.yml       text eol=lf
+*.txt       text eol=lf
+Dockerfile  text eol=lf
+.env*       text eol=lf

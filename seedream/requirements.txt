@@ -1,0 +1,7 @@
+# Same versions Open WebUI 0.12.5 ships, which the proxy and its tests were verified with.
+fastapi==0.136.3
+starlette==1.10.0
+uvicorn==0.54.0
+httpx==0.28.1
+pillow==13.0.0
+python-multipart==0.0.32

@@ -1,0 +1,6 @@
+# Secrets and server state: never commit these.
+.env
+data/
+backups/
+__pycache__/
+.pytest_cache/
