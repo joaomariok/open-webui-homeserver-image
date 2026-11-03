@@ -1,0 +1,9 @@
+# SearXNG settings: everything not listed here keeps SearXNG's default.
+# After editing: docker compose restart searxng
+use_default_settings: true
+
+search:
+  # Open WebUI requests results as JSON; without it searches fail with a 403.
+  formats:
+    - html
+    - json

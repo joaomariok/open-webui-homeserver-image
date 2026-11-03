@@ -1,7 +1,8 @@
-# Open WebUI + Seedream image proxy for the home server ("homeserver").
+# Open WebUI + Seedream image proxy + SearXNG web search for the home server ("homeserver").
 #
 #   Phone / PC --(Tailscale HTTPS)--> tailscale serve --> 127.0.0.1:3000 --> open-webui:8080
 #   open-webui --(private Compose network)--> seedream:8787 --> BytePlus Seedream
+#   open-webui --(private Compose network)--> searxng:8080 --> public search engines
 #   open-webui --> Venice API, Runpod GPU Pod (OpenAI-compatible connections)
 #
 # Secrets and per-machine values live in .env (copy .env.example). See README.md.
@@ -61,8 +62,14 @@ services:
       IMAGES_EDIT_OPENAI_API_BASE_URL: http://seedream:8787/v1
       IMAGES_EDIT_OPENAI_API_KEY: default
       IMAGE_EDIT_MODEL: default
+      # Web search through the private SearXNG container. Open WebUI adds the
+      # query itself, so the URL has no "?q=<query>".
+      ENABLE_WEB_SEARCH: "true"
+      WEB_SEARCH_ENGINE: searxng
+      SEARXNG_QUERY_URL: http://searxng:8080/search
     depends_on:
       - seedream
+      - searxng
 
   seedream:
     build: ./seedream
@@ -85,3 +92,19 @@ services:
       UPSTREAM_RETRIES: ${UPSTREAM_RETRIES:-}
       # Keys that must never be forwarded to BytePlus if Open WebUI sends them.
       LLAMA_API_KEY: ${LLAMA_API_KEY:-}
+
+  searxng:
+    # Pin a release; tags are at https://hub.docker.com/r/searxng/searxng/tags
+    image: docker.io/searxng/searxng:${SEARXNG_TAG:-2026.11.2-cccbc9e15}
+    container_name: searxng
+    restart: unless-stopped
+    # Reachable only by other containers in this project (no "ports:" on purpose).
+    expose:
+      - "8080"
+    volumes:
+      # Turns on the JSON output Open WebUI needs. Only this file, read-only:
+      # the image changes the owner of a mounted folder to its own user.
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    mem_limit: ${SEARXNG_MEM_LIMIT:-512m}
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?set SEARXNG_SECRET in .env (openssl rand -hex 32)}

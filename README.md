@@ -1,7 +1,7 @@
 # Open WebUI on the home server
 
 Always-on Open WebUI for the Debian 13 laptop (`homeserver`), plus the Seedream
-image proxy from `RunpodImage`. Reached only through Tailscale; the language
+image proxy from `RunpodImage` and SearXNG for web search. Reached only through Tailscale; the language
 models run elsewhere.
 
 ```
@@ -10,7 +10,8 @@ models run elsewhere.
                                         ┌────────────── Docker Compose project "homeserver-ai" ──────────────┐
                                         │  open-webui (official image, chats in ./data)                       │
                                         │      │ private network                                              │
-                                        │      └──► seedream:8787 (image proxy) ──────────► BytePlus Seedream │
+                                        │      ├──► seedream:8787 (image proxy) ──────────► BytePlus Seedream │
+                                        │      └──► searxng:8080 (web search) ────────────► search engines    │
                                         └─────────────────────────────────────────────────────────────────────┘
                      open-webui ──► Venice API (daily chat)
                      open-webui ──► Runpod GPU Pod :8000 (only while you run it)
@@ -20,9 +21,10 @@ models run elsewhere.
 
 | File | What it is |
 |---|---|
-| `docker-compose.yml` | The two services and all their settings |
+| `docker-compose.yml` | The three services and all their settings |
 | `.env.example` | Template for `.env` (secrets and per-machine values) |
 | `seedream/` | The image proxy (`seedream_proxy.py`, same code as `RunpodImage` plus `SEEDREAM_HOST`), its `Dockerfile` and pinned `requirements.txt` |
+| `searxng/settings.yml` | SearXNG settings (turns on the JSON output Open WebUI needs) |
 | `tests/` | Proxy tests (no network needed) |
 | `scripts/backup.sh` | Consistent backup of the database and uploads |
 
@@ -48,10 +50,11 @@ On the server (`ssh joaom@homeserver`):
 cd ~/homeserver-ai
 cp .env.example .env && chmod 600 .env
 openssl rand -hex 32        # paste the output into WEBUI_SECRET_KEY
+openssl rand -hex 32        # paste this one into SEARXNG_SECRET
 nano .env
 ```
 
-Fill in `WEBUI_SECRET_KEY`, `WEBUI_URL`, `WEBUI_ADMIN_EMAIL`, `WEBUI_ADMIN_PASSWORD`,
+Fill in `WEBUI_SECRET_KEY`, `SEARXNG_SECRET`, `WEBUI_URL`, `WEBUI_ADMIN_EMAIL`, `WEBUI_ADMIN_PASSWORD`,
 `OPENAI_API_BASE_URLS`, `OPENAI_API_KEYS` and `ARK_API_KEY`. `WEBUI_URL` is this machine's Tailscale name with `https://`:
 `tailscale dns status` prints it ("Other devices in your tailnet can reach
 this device at …").
@@ -64,7 +67,7 @@ database wins: change them in **Admin Panel › Settings**, not in `.env`.
 
 ```bash
 docker compose up -d --build
-docker compose ps                      # both "running"; open-webui becomes "healthy" after a while
+docker compose ps                      # all three "running"; open-webui becomes "healthy" after a while
 docker compose logs -f open-webui      # Ctrl+C to stop following
 ```
 
@@ -122,7 +125,24 @@ the Pod's `LLAMA_API_KEY`. The Pod ID, and so the URL, changes if the Pod is
 migrated. While the Pod is stopped, its models just disappear from the list
 after a 3-second wait.
 
-### 7. Backups
+### 7. Web search
+
+SearXNG runs in its own container with no published port, so only Open WebUI
+can reach it. Check it from inside Open WebUI's container:
+
+```bash
+docker compose exec open-webui curl -s -o /dev/null -w '%{http_code}\n' 'http://searxng:8080/search?q=test&format=json'   # 200
+```
+
+If you added SearXNG to a server that was already running, the database may
+override the values in `docker-compose.yml`. In **Admin Panel › Settings › Web
+Search**, check that search is on, the engine is `searxng` and the query URL is
+`http://searxng:8080/search`. Then turn on web search in a chat.
+
+Search engines see this machine's home IP address, and heavy use can get it
+blocked or sent CAPTCHAs (see Possible errors).
+
+### 8. Backups
 
 ```bash
 sudo apt install -y sqlite3
@@ -192,6 +212,9 @@ docker compose up -d
 
 Proxy changes: edit `seedream/`, then `docker compose up -d --build seedream`.
 
+SearXNG has no data to back up: set a newer `SEARXNG_TAG` in `.env`, then
+`docker compose pull searxng && docker compose up -d searxng`.
+
 ## Tests (proxy)
 
 ```bash
@@ -213,4 +236,7 @@ python3 -m venv .venv && .venv/bin/pip install -r tests/requirements.txt
 | Changed `.env`, nothing happened | That setting lives in the database now (see step 2). Change it in Admin Panel › Settings. |
 | Pod models missing | Pod stopped, port 8000 not exposed, wrong key, or the Pod ID changed. Test from the server: `curl -s -H "Authorization: Bearer <llama-key>" https://<pod-id>-8000.proxy.runpod.net/v1/models` |
 | Very long Pod requests fail | Possibly Runpod's HTTP proxy timeout (not verified for this setup). Shorter contexts help; streaming keeps the connection active. |
+| Web search fails with a 403 | `search.formats` in `searxng/settings.yml` is missing `json`. After fixing it: `docker compose restart searxng`. |
+| Web search returns few or no results | A search engine is blocking this IP: `docker compose logs searxng` names it. Disable that engine in `searxng/settings.yml` or try again later. |
+| Web search is very slow | Open WebUI fetches and embeds every result page. Set **Bypass Embedding and Retrieval** in Admin Panel › Settings › Web Search; this can send more text to the model, which costs more tokens on Venice. |
 | `backup.sh`: `unable to open database` | Run it with `sudo`. |
