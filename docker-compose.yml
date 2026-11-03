@@ -3,6 +3,7 @@
 #   Phone / PC --(Tailscale HTTPS)--> tailscale serve --> 127.0.0.1:3000 --> open-webui:8080
 #   open-webui --(private Compose network)--> seedream:8787 --> BytePlus Seedream
 #   open-webui --(private Compose network)--> searxng:8080 --> public search engines
+#   Phone / PC --(Tailscale HTTPS, /searxng)--> tailscale serve --> 127.0.0.1:8888 --> searxng:8080
 #   open-webui --> Venice API, Runpod GPU Pod (OpenAI-compatible connections)
 #
 # Secrets and per-machine values live in .env (copy .env.example). See README.md.
@@ -98,13 +99,22 @@ services:
     image: docker.io/searxng/searxng:${SEARXNG_TAG:-2026.11.2-cccbc9e15}
     container_name: searxng
     restart: unless-stopped
-    # Reachable only by other containers in this project (no "ports:" on purpose).
-    expose:
-      - "8080"
+    # Only this machine can connect; `tailscale serve` publishes it as
+    # /searxng on your tailnet. Open WebUI uses searxng:8080 directly.
+    ports:
+      - "127.0.0.1:${SEARXNG_HOST_PORT:-8888}:8080"
     volumes:
       # Turns on the JSON output Open WebUI needs. Only this file, read-only:
       # the image changes the owner of a mounted folder to its own user.
       - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     mem_limit: ${SEARXNG_MEM_LIMIT:-512m}
     environment:
       SEARXNG_SECRET: ${SEARXNG_SECRET:?set SEARXNG_SECRET in .env (openssl rand -hex 32)}
+      # Makes SearXNG generate its links and CSS paths under /searxng/.
+      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:?set SEARXNG_BASE_URL in .env}

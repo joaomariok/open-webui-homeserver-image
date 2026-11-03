@@ -54,7 +54,7 @@ openssl rand -hex 32        # paste this one into SEARXNG_SECRET
 nano .env
 ```
 
-Fill in `WEBUI_SECRET_KEY`, `SEARXNG_SECRET`, `WEBUI_URL`, `WEBUI_ADMIN_EMAIL`, `WEBUI_ADMIN_PASSWORD`,
+Fill in `WEBUI_SECRET_KEY`, `SEARXNG_SECRET`, `SEARXNG_BASE_URL`, `WEBUI_URL`, `WEBUI_ADMIN_EMAIL`, `WEBUI_ADMIN_PASSWORD`,
 `OPENAI_API_BASE_URLS`, `OPENAI_API_KEYS` and `ARK_API_KEY`. `WEBUI_URL` is this machine's Tailscale name with `https://`:
 `tailscale dns status` prints it ("Other devices in your tailnet can reach
 this device at …").
@@ -127,8 +127,8 @@ after a 3-second wait.
 
 ### 7. Web search
 
-SearXNG runs in its own container with no published port, so only Open WebUI
-can reach it. Check it from inside Open WebUI's container:
+Open WebUI reaches SearXNG directly over the private Compose network. Check it
+from inside Open WebUI's container:
 
 ```bash
 docker compose exec open-webui curl -s -o /dev/null -w '%{http_code}\n' 'http://searxng:8080/search?q=test&format=json'   # 200
@@ -141,6 +141,22 @@ Search**, check that search is on, the engine is `searxng` and the query URL is
 
 Search engines see this machine's home IP address, and heavy use can get it
 blocked or sent CAPTCHAs (see Possible errors).
+
+To use SearXNG's own search page from your devices, set `SEARXNG_BASE_URL` in
+`.env` to your `WEBUI_URL` plus `/searxng/`, then:
+
+```bash
+docker compose up -d searxng
+sudo tailscale serve --bg --set-path=/searxng 8888
+```
+
+Open it at `WEBUI_URL` plus `/searxng/`. Open WebUI stays at `/`. To remove only
+this page: `sudo tailscale serve --set-path=/searxng off`.
+
+**SearXNG has no login.** Every device allowed to reach this machine's port 443
+can use it, including other accounts on your tailnet. Don't use `/search` as the
+path: it collides with SearXNG's own results page, and searches land on the home
+page.
 
 ### 8. Backups
 
